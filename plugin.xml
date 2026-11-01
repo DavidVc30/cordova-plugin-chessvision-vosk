@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android" id="cordova-plugin-chessvision-vosk" version="0.1.0">
+  <name>ChessVision Vosk Android</name>
+  <description>Experimental native continuous offline recognition for Chess Vision.</description>
+  <license>Apache-2.0</license>
+  <js-module src="www/vosk.js" name="ChessVisionVosk"><clobbers target="window.ChessVisionVosk" /></js-module>
+  <platform name="android">
+    <config-file target="res/xml/config.xml" parent="/*"><feature name="ChessVisionVosk"><param name="android-package" value="com.chessvision.vosk.ChessVisionVosk" /></feature></config-file>
+    <config-file target="AndroidManifest.xml" parent="/*">
+      <uses-permission android:name="android.permission.RECORD_AUDIO" />
+      <uses-permission android:name="android.permission.INTERNET" />
+    </config-file>
+    <framework src="com.alphacephei:vosk-android:0.3.47@aar" />
+    <framework src="net.java.dev.jna:jna:5.13.0@aar" />
+    <source-file src="src/android/ChessVisionVosk.java" target-dir="src/com/chessvision/vosk" />
+  </platform>
+</plugin>
