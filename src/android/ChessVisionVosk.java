@@ -28,6 +28,7 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
   private static final String COORDINATE_GRAMMAR = buildCoordinateGrammar();
   private static final String MOVE_GRAMMAR = buildMoveGrammar();
   private String grammarMode = "unrestricted";
+  private String customGrammar = null;
   private static String buildMoveGrammar() {
     String[] pieces = {"pawn", "knight", "bishop", "rook", "queen", "king"};
     String[] files = {"a", "b", "c", "d", "e", "f", "g", "h"};
@@ -82,13 +83,25 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
         return true;
       case "setGrammar":
         String requested = args.optString(0, "unrestricted");
-        if (!requested.equals("coordinates") && !requested.equals("moves") && !requested.equals("unrestricted")) {
+        String nextGrammar = null;
+        if (requested.equals("legal")) {
+          JSONArray phrases = args.optJSONArray(1);
+          if (phrases == null || phrases.length() == 0 || phrases.length() > 1000) {
+            cb.error("Legal grammar requires 1–1000 phrases"); return true;
+          }
+          for (int i = 0; i < phrases.length(); i++) {
+            String phrase = phrases.optString(i, "");
+            if (!phrase.matches("[a-z0-9 ]{1,90}")) { cb.error("Invalid legal phrase"); return true; }
+          }
+          nextGrammar = phrases.toString();
+        } else if (!requested.equals("coordinates") && !requested.equals("moves") && !requested.equals("unrestricted")) {
           cb.error("Unknown grammar: " + requested); return true;
         }
+        final String selectedGrammar = nextGrammar;
         main.post(() -> {
-          if (requested.equals(grammarMode)) { cb.success(); return; }
           if (speechService != null) { cb.error("Stop recognition before switching grammar"); return; }
           grammarMode = requested;
+          customGrammar = selectedGrammar;
           cb.success();
         });
         return true;
@@ -112,7 +125,9 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
         main.post(() -> {
           try {
             if (speechService != null) { cb.error("Vosk stream already active"); return; }
-            recognizer = grammarMode.equals("coordinates")
+            recognizer = grammarMode.equals("legal")
+                ? new Recognizer(model, 16000.0f, customGrammar)
+                : grammarMode.equals("coordinates")
                 ? new Recognizer(model, 16000.0f, COORDINATE_GRAMMAR)
                 : grammarMode.equals("moves")
                     ? new Recognizer(model, 16000.0f, MOVE_GRAMMAR)
