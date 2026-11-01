@@ -25,6 +25,15 @@ import java.util.zip.ZipInputStream;
 public class ChessVisionVosk extends CordovaPlugin implements RecognitionListener {
   private static final String MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip";
   private final Handler main = new Handler(Looper.getMainLooper());
+  private static final String COORDINATE_GRAMMAR = buildCoordinateGrammar();
+  private String grammarMode = "unrestricted";
+  private static String buildCoordinateGrammar() {
+    String[] files = {"a", "b", "c", "d", "e", "f", "g", "h"};
+    String[] ranks = {"one", "two", "three", "four", "five", "six", "seven", "eight"};
+    JSONArray phrases = new JSONArray();
+    for (String file : files) for (String rank : ranks) phrases.put(file + " " + rank);
+    return phrases.toString();
+  }
   private Model model;
   private Recognizer recognizer;
   private SpeechService speechService;
@@ -57,6 +66,18 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
         }
         startStream(cb);
         return true;
+      case "setGrammar":
+        String requested = args.optString(0, "unrestricted");
+        if (!requested.equals("coordinates") && !requested.equals("unrestricted")) {
+          cb.error("Unknown grammar: " + requested); return true;
+        }
+        main.post(() -> {
+          if (requested.equals(grammarMode)) { cb.success(); return; }
+          if (speechService != null) { cb.error("Stop recognition before switching grammar"); return; }
+          grammarMode = requested;
+          cb.success();
+        });
+        return true;
       case "stop":
         main.post(() -> { releaseStream(); cb.success(); });
         return true;
@@ -77,7 +98,7 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
         main.post(() -> {
           try {
             if (speechService != null) { cb.error("Vosk stream already active"); return; }
-            recognizer = new Recognizer(model, 16000.0f);
+            recognizer = grammarMode.equals("coordinates") ? new Recognizer(model, 16000.0f, COORDINATE_GRAMMAR) : new Recognizer(model, 16000.0f);
             speechService = new SpeechService(recognizer, 16000.0f);
             streamCallback = cb;
             speechService.startListening(this);
