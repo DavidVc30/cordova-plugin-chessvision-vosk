@@ -26,7 +26,21 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
   private static final String MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip";
   private final Handler main = new Handler(Looper.getMainLooper());
   private static final String COORDINATE_GRAMMAR = buildCoordinateGrammar();
+  private static final String MOVE_GRAMMAR = buildMoveGrammar();
   private String grammarMode = "unrestricted";
+  private static String buildMoveGrammar() {
+    String[] pieces = {"pawn", "knight", "bishop", "rook", "queen", "king"};
+    String[] files = {"a", "b", "c", "d", "e", "f", "g", "h"};
+    String[] ranks = {"one", "two", "three", "four", "five", "six", "seven", "eight"};
+    JSONArray phrases = new JSONArray();
+    // Include coordinate-only utterances for the existing implicit-pawn behavior.
+    for (String file : files) for (String rank : ranks) {
+      String coordinate = file + " " + rank;
+      phrases.put(coordinate);
+      for (String piece : pieces) phrases.put(piece + " to " + coordinate);
+    }
+    return phrases.toString();
+  }
   private static String buildCoordinateGrammar() {
     String[] files = {"a", "b", "c", "d", "e", "f", "g", "h"};
     String[] ranks = {"one", "two", "three", "four", "five", "six", "seven", "eight"};
@@ -68,7 +82,7 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
         return true;
       case "setGrammar":
         String requested = args.optString(0, "unrestricted");
-        if (!requested.equals("coordinates") && !requested.equals("unrestricted")) {
+        if (!requested.equals("coordinates") && !requested.equals("moves") && !requested.equals("unrestricted")) {
           cb.error("Unknown grammar: " + requested); return true;
         }
         main.post(() -> {
@@ -98,7 +112,11 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
         main.post(() -> {
           try {
             if (speechService != null) { cb.error("Vosk stream already active"); return; }
-            recognizer = grammarMode.equals("coordinates") ? new Recognizer(model, 16000.0f, COORDINATE_GRAMMAR) : new Recognizer(model, 16000.0f);
+            recognizer = grammarMode.equals("coordinates")
+                ? new Recognizer(model, 16000.0f, COORDINATE_GRAMMAR)
+                : grammarMode.equals("moves")
+                    ? new Recognizer(model, 16000.0f, MOVE_GRAMMAR)
+                    : new Recognizer(model, 16000.0f);
             speechService = new SpeechService(recognizer, 16000.0f);
             streamCallback = cb;
             speechService.startListening(this);
