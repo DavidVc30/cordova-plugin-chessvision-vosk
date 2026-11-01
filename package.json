@@ -1,0 +1,19 @@
+{
+  "name": "cordova-plugin-chessvision-vosk",
+  "version": "0.1.0",
+  "description": "Native Android Vosk speech recognition for Chess Vision",
+  "cordova": {
+    "id": "cordova-plugin-chessvision-vosk",
+    "platforms": [
+      "android"
+    ]
+  },
+  "keywords": [
+    "cordova",
+    "android",
+    "vosk",
+    "speech-recognition",
+    "offline"
+  ],
+  "license": "MIT"
+}
