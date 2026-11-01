@@ -146,6 +146,7 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
     try {
       JSONObject obj = new JSONObject();
       obj.put("type", type); obj.put("text", text); obj.put("timestampMs", System.currentTimeMillis());
+      obj.put("nativeElapsedMs", android.os.SystemClock.elapsedRealtime());
       PluginResult result = new PluginResult(PluginResult.Status.OK, obj);
       result.setKeepCallback(true);
       cb.sendPluginResult(result);
