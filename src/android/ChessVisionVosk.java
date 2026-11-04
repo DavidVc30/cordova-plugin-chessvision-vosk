@@ -17,13 +17,11 @@ import org.vosk.android.SpeechService;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class ChessVisionVosk extends CordovaPlugin implements RecognitionListener {
-  private static final String MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip";
+  private static final String MODEL_ASSET = "vosk/vosk-model-small-en-us-0.15.zip";
   private final Handler main = new Handler(Looper.getMainLooper());
   private static final String COORDINATE_GRAMMAR = buildCoordinateGrammar();
   private static final String MOVE_GRAMMAR = buildMoveGrammar();
@@ -190,33 +188,34 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
     File staging = new File(root, "unpacking");
     if (staging.exists()) deleteRecursive(staging);
     if (!staging.mkdirs()) throw new Exception("Cannot create staging folder");
-    HttpURLConnection connection = (HttpURLConnection) new URL(MODEL_URL).openConnection();
-    connection.setConnectTimeout(15000); connection.setReadTimeout(30000);
-    connection.setInstanceFollowRedirects(true);
-    if (connection.getResponseCode() != 200) throw new Exception("Model download HTTP " + connection.getResponseCode());
     long total = 0;
-    try (InputStream input = connection.getInputStream(); ZipInputStream zip = new ZipInputStream(input)) {
+    // The model is packaged in the APK. No download or network access is needed.
+    try (InputStream input = cordova.getActivity().getAssets().open(MODEL_ASSET);
+         ZipInputStream zip = new ZipInputStream(input)) {
       ZipEntry entry;
       while ((entry = zip.getNextEntry()) != null) {
         File out = new File(staging, entry.getName());
-        if (!out.getCanonicalPath().startsWith(staging.getCanonicalPath() + File.separator)) throw new Exception("Unsafe model ZIP entry");
-        if (entry.isDirectory()) { if (!out.exists() && !out.mkdirs()) throw new Exception("Cannot create model folder"); }
-        else {
-          if (!out.getParentFile().exists() && !out.getParentFile().mkdirs()) throw new Exception("Cannot create model folder");
+        if (!out.getCanonicalPath().startsWith(staging.getCanonicalPath() + File.separator))
+          throw new Exception("Unsafe bundled model ZIP entry");
+        if (entry.isDirectory()) {
+          if (!out.exists() && !out.mkdirs()) throw new Exception("Cannot create model folder");
+        } else {
+          if (!out.getParentFile().exists() && !out.getParentFile().mkdirs())
+            throw new Exception("Cannot create model folder");
           try (FileOutputStream output = new FileOutputStream(out)) {
             byte[] buf = new byte[16384]; int n;
             while ((n = zip.read(buf)) != -1) {
               total += n;
-              if (total > 250L * 1024 * 1024) throw new Exception("Model archive too large");
+              if (total > 250L * 1024 * 1024) throw new Exception("Bundled model archive too large");
               output.write(buf, 0, n);
             }
           }
         }
         zip.closeEntry();
       }
-    } finally { connection.disconnect(); }
+    }
     File unpacked = new File(staging, "vosk-model-small-en-us-0.15");
-    if (!new File(unpacked, "am/final.mdl").exists()) throw new Exception("Downloaded model incomplete");
+    if (!new File(unpacked, "am/final.mdl").exists()) throw new Exception("Bundled model incomplete");
     if (target.exists()) deleteRecursive(target);
     if (!unpacked.renameTo(target)) throw new Exception("Cannot install model");
     deleteRecursive(staging);
