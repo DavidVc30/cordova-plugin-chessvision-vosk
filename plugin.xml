@@ -8,10 +8,11 @@
     <config-file target="res/xml/config.xml" parent="/*"><feature name="ChessVisionVosk"><param name="android-package" value="com.chessvision.vosk.ChessVisionVosk" /></feature></config-file>
     <config-file target="AndroidManifest.xml" parent="/*">
       <uses-permission android:name="android.permission.RECORD_AUDIO" />
-      <uses-permission android:name="android.permission.INTERNET" />
     </config-file>
     <framework src="com.alphacephei:vosk-android:0.3.47@aar" />
     <framework src="net.java.dev.jna:jna:5.13.0@aar" />
     <source-file src="src/android/ChessVisionVosk.java" target-dir="src/com/chessvision/vosk" />
+    <hook type="after_prepare" src="scripts/copy-model.js" />
+    <hook type="before_compile" src="scripts/copy-model.js" />
   </platform>
 </plugin>

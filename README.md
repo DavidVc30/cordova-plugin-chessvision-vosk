@@ -1,51 +1,42 @@
-# Chess Vision native Vosk Android (experimental)
+# SayChess Vosk — bundled offline English model
 
-## Installation
+The Vosk model is now **packaged inside the APK**. On first launch the plugin extracts the bundled model to Android private storage and loads it. **No internet connection is needed on the phone**, including for first use. The existing Angular `ChessVisionVosk.initialize()` API is unchanged.
 
-1. Extract this plugin folder outside the Cordova project.
-2. In `C:\Prive\Daddy30\Apps\Cordova`, run:
-   `cordova plugin add "C:\path\to\chessvision-vosk-plugin"`
-3. Keep the existing `cordova-plugin-speechrecognition` installed for the selectable Android fallback.
-4. Replace the Angular project's `src` folder with the accompanying Chess Vision Vosk source ZIP.
-5. Run your usual Angular build / Cordova prepare / Cordova build script.
+## Important: add the model ZIP before building
 
-## First use
+This source package **does not contain the 40 MB model binary**, because the model download server was inaccessible from the editing environment. Download the official model once on your development PC:
 
-The first Vosk session downloads `vosk-model-small-en-us-0.15.zip` (~40 MB) from
-https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
-and unpacks it into Android app-private storage. An internet connection is required
-**once**. Afterwards recognition runs offline. Initial extraction needs additional
-free storage and can take time. This plugin does not bundle the model.
+`https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip`
+
+Either run `powershell -ExecutionPolicy Bypass -File scripts\download-model.ps1` from this plugin folder, or manually place the downloaded ZIP at:
+
+`model/vosk-model-small-en-us-0.15.zip`
+
+Do not extract or rename the ZIP. The model must contain `vosk-model-small-en-us-0.15/am/final.mdl`. Check the model license on the upstream model page before distribution.
+
+## Cordova installation / upgrade
+
+1. Place the model ZIP in the plugin's `model` folder **before adding the plugin**.
+2. In your Cordova project directory, run:
+
+```powershell
+cordova plugin rm cordova-plugin-chessvision-vosk
+cordova plugin add "C:\path\to\cordova-plugin-chessvision-vosk-main"
+cordova prepare android
+cordova build android
+```
+
+The `after_prepare` and `before_compile` hooks copy the model into `platforms/android/app/src/main/assets/vosk/`. Builds fail clearly if the model is missing; this avoids accidentally shipping an APK that downloads its model.
 
 ## Behavior
 
-- The microphone stays active across consecutive `listen()` requests in Voice
-  Training / Move Trainer, rather than reopening every nine seconds.
-- Each `listen()` has a nine-second visual waiting window; if it expires without
-  speech, only the JS request ends. The microphone stream is not restarted.
-- A nonempty Vosk partial hypothesis changes the button to Processing.
-- A nonempty Vosk final utterance result is passed to the existing chess parser.
-- On navigation, pause, disabling auto-listening, or match stop, the microphone
-  is released; it will reopen when the next session starts.
-- Settings can switch between experimental native Vosk and legacy Android recognition.
-- The three Android silence thresholds do not apply to Vosk.
+- Vosk loads from APK assets, extracts once into the app-private model directory, and reuses it thereafter.
+- Speech recognition remains continuous; grammar and JavaScript APIs are unchanged.
+- No runtime model download, no internet permission required by this plugin.
+- First launch still needs a short **local extraction** step and enough storage space for the extracted model.
+- APK/AAB size increases by roughly the compressed model size. On-device storage includes both the APK asset and the extracted model.
+- Existing app installations with a valid extracted model reuse it.
 
-## Limitations / test notes
+## Verify
 
-- Experimental Android-first implementation, **not compiled or device-tested**.
-- The Android library version and Maven/JNA dependency resolution must be
-  verified in your Cordova build environment.
-- English small model is general-purpose; chess vocabulary has NOT yet been
-  constrained with Vosk grammar. Accuracy must be measured.
-- The Processing state uses the first nonempty partial recognition, not a true
-  microphone-level VAD. If partial text is delayed, the UI will lag speech onset.
-- A 12-second processing watchdog releases the waiting JS request but keeps the
-  audio stream running. Late results while idle are discarded.
-- An utterance that starts just before the nine-second deadline may need more
-  time to produce a partial result. The first partial suspends the countdown.
-- Microphone permission is requested on Android.
-- Android background pause closes the stream.
-- For production, consider shipping a prebundled model or explicit download
-  progress, network retry, checksums and model version management.
-
-Vosk: https://alphacephei.com/vosk/  (Apache-2.0 software; check model license separately).
+Check that the built APK contains `assets/vosk/vosk-model-small-en-us-0.15.zip` and test airplane-mode first launch on a clean installation. This plugin has not been compiled or tested on a device in this environment.
