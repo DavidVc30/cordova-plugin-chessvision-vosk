@@ -3,8 +3,6 @@ package com.chessvision.vosk;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.PluginResult;
@@ -17,12 +15,15 @@ import org.vosk.android.SpeechService;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class ChessVisionVosk extends CordovaPlugin implements RecognitionListener {
   private static final String MODEL_ASSET = "vosk/vosk-model-small-en-us-0.15.zip";
-  private final Handler main = new Handler(Looper.getMainLooper());
+  // Serialize native recognizer operations without blocking Android UI rendering.
+  private final ExecutorService audioExecutor = Executors.newSingleThreadExecutor();
   private static final String COORDINATE_GRAMMAR = buildCoordinateGrammar();
   private static final String MOVE_GRAMMAR = buildMoveGrammar();
   private String grammarMode = "unrestricted";
@@ -47,10 +48,10 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
     for (String file : files) for (String rank : ranks) phrases.put(file + " " + rank);
     return phrases.toString();
   }
-  private Model model;
+  private volatile Model model;
   private Recognizer recognizer;
   private SpeechService speechService;
-  private CallbackContext streamCallback;
+  private volatile CallbackContext streamCallback;
   private volatile boolean loading = false;
   private CallbackContext permissionStart;
   private static final int AUDIO_REQUEST = 5403;
@@ -96,7 +97,7 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
           cb.error("Unknown grammar: " + requested); return true;
         }
         final String selectedGrammar = nextGrammar;
-        main.post(() -> {
+        audioExecutor.execute(() -> {
           if (speechService != null) { cb.error("Stop recognition before switching grammar"); return; }
           grammarMode = requested;
           customGrammar = selectedGrammar;
@@ -104,7 +105,7 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
         });
         return true;
       case "stop":
-        main.post(() -> { releaseStream(); cb.success(); });
+        audioExecutor.execute(() -> { releaseStream(); cb.success(); });
         return true;
       default: return false;
     }
@@ -120,7 +121,7 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
   }
 
   private void startStream(CallbackContext cb) {
-        main.post(() -> {
+        audioExecutor.execute(() -> {
           try {
             if (speechService != null) { cb.error("Vosk stream already active"); return; }
             recognizer = grammarMode.equals("legal")
@@ -177,8 +178,12 @@ public class ChessVisionVosk extends CordovaPlugin implements RecognitionListene
     if (recognizer != null) { recognizer.close(); recognizer = null; }
     if (old != null) { PluginResult end = new PluginResult(PluginResult.Status.NO_RESULT); end.setKeepCallback(false); old.sendPluginResult(end); }
   }
-  @Override public void onPause(boolean multitasking) { releaseStream(); super.onPause(multitasking); }
-  @Override public void onDestroy() { releaseStream(); if (model != null) { model.close(); model = null; } super.onDestroy(); }
+  @Override public void onPause(boolean multitasking) { audioExecutor.execute(this::releaseStream); super.onPause(multitasking); }
+  @Override public void onDestroy() {
+    audioExecutor.execute(() -> { releaseStream(); if (model != null) { model.close(); model = null; } });
+    audioExecutor.shutdown();
+    super.onDestroy();
+  }
 
   private File installModel() throws Exception {
     File root = new File(cordova.getActivity().getFilesDir(), "chessvision-vosk");
